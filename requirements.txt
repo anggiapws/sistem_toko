@@ -1,0 +1,8 @@
+streamlit
+python-barcode
+streamlit-webrtc
+opencv-python-headless
+pyzbar
+pillow
+av
+pandas
