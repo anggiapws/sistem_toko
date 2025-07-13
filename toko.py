@@ -5,12 +5,6 @@ import io
 import barcode
 from barcode.writer import ImageWriter
 
-from streamlit_webrtc import webrtc_streamer
-import av
-import cv2
-from pyzbar import pyzbar
-
-
 
 st.markdown("""
 <style>
