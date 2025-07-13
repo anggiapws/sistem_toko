@@ -5,6 +5,8 @@ import io
 import barcode
 from barcode.writer import ImageWriter
 
+# --- Hilangkan import pyzbar, webrtc_streamer, cv2, av ---
+
 
 st.markdown("""
 <style>
@@ -23,7 +25,7 @@ div[role="radiogroup"] > label > input[type="radio"] {
 
 /* === Gaya tombol menu (label) === */
 div[role="radiogroup"] > label {
-    background-color: rgba(255,255,255,255);
+    background-color: rgba(0, 51, 102, 0.4);
     border: 1.5px solid #ffffff60;
     border-radius: 6px;
     margin-bottom: 6px;
@@ -35,25 +37,23 @@ div[role="radiogroup"] > label {
     display: flex;
     align-items: center;
     transition: background-color 0.2s ease, border 0.2s ease;
-
-    /* Tambahan agar ukuran semua kotak sama */
-    width: 100%;              /* Pakai seluruh lebar sidebar */
-    box-sizing: border-box;   /* Padding & border dihitung dalam width */
-    min-height: 38px;         /* Sama tinggi */
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 38px;
 }
 
 /* === Hover efek biru tua === */
 div[role="radiogroup"] > label:hover {
-    background-color: rgba(0, 51, 102, 0.4);
+    background-color: #003366;
     border-color: #003366;
     color: #e0e7ff;
 }
 
 /* === Aktif (terpilih) === */
 div[role="radiogroup"] > label[aria-checked="true"] {
-    background-color: #003366;
-    border-color: #003366;
-    box-shadow: 0 0 4px rgba(0,51,102,0.5);
+    background-color: #002244;
+    border-color: #002244;
+    box-shadow: 0 0 4px rgba(0,34,68,0.7);
     font-weight: bold;
     color: white;
 }
@@ -65,8 +65,6 @@ div[role="radiogroup"] > label[aria-checked="true"] {
 </style>
 """, unsafe_allow_html=True)
 
-
-
 # === Inisialisasi session state ===
 if "barang" not in st.session_state:
     st.session_state.barang = []  # List dict: {Kode, Nama, Jenis, Harga Beli, Harga Jual, Stok}
@@ -74,8 +72,6 @@ if "jenis_list" not in st.session_state:
     st.session_state.jenis_list = []
 if "kode_list" not in st.session_state:
     st.session_state.kode_list = []
-if "last_barcode" not in st.session_state:
-    st.session_state.last_barcode = ""
 if "transaksi_aktif" not in st.session_state:
     st.session_state.transaksi_aktif = []  # keranjang sekarang
 if "riwayat_transaksi" not in st.session_state:
@@ -83,26 +79,12 @@ if "riwayat_transaksi" not in st.session_state:
 if "pengeluaran" not in st.session_state:
     st.session_state.pengeluaran = []
 
-# === Fungsi scan barcode dari kamera ===
-def barcode_frame_callback(frame):
-    img = frame.to_ndarray(format="bgr24")
-    barcodes = pyzbar.decode(img)
-    for barcode_item in barcodes:
-        (x, y, w, h) = barcode_item.rect
-        cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 2)
-        barcode_data = barcode_item.data.decode("utf-8")
-        cv2.putText(img, barcode_data, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
-        st.session_state.last_barcode = barcode_data
-    return av.VideoFrame.from_ndarray(img, format="bgr24")
-
-# === Fungsi cari barang by kode ===
+# Fungsi cari barang by kode
 def cari_barang_by_kode(kode):
     for b in st.session_state.barang:
         if b["Kode"] == kode:
             return b
     return None
-
-
 
 
 st.sidebar.title("Menu Utama")
@@ -112,9 +94,6 @@ menu = st.sidebar.radio("", [
     "Transaksi Bulanan", 
     "Keuntungan"
 ])
-
-
-
 
 # === MENU: INPUT BARANG ===
 if menu == "Input Barang":
@@ -139,17 +118,24 @@ if menu == "Input Barang":
             kode_pilih = st.selectbox("Kode Barang", kode_opsi)
 
             if kode_pilih == "Tambah Kode Baru":
-                kode_input = st.text_input("Masukkan Kode Baru (bisa scan barcode)")
-                if st.session_state.last_barcode:
-                    kode_input = st.session_state.last_barcode
+                kode_input = st.text_input("Masukkan Kode Baru (manual input)")
             else:
                 kode_input = kode_pilih
 
             stok = st.number_input("Stok Awal", min_value=0, step=1)
 
         with col2:
-            st.markdown("### Scan Barcode (Opsional)")
-            webrtc_streamer(key="barcode-scanner-form", video_frame_callback=barcode_frame_callback, media_stream_constraints={"video": True, "audio": False})
+            st.markdown("### Barcode (opsional: hanya preview jika sudah ada kode)")
+            if kode_input:
+                try:
+                    CODE128 = barcode.get_barcode_class('code128')
+                    barcode_img = CODE128(kode_input, writer=ImageWriter(), add_checksum=False)
+                    buffer = io.BytesIO()
+                    barcode_img.write(buffer)
+                    buffer.seek(0)
+                    st.image(buffer, caption=f"Barcode: {kode_input}", use_container_width=True)
+                except Exception as e:
+                    st.warning("Tidak bisa generate barcode untuk kode ini.")
 
             harga_beli = st.number_input("Harga Modal (Rp)", min_value=0, step=1000, format="%d")
             harga_jual = st.number_input("Harga Jual (Rp)", min_value=0, step=1000, format="%d")
@@ -177,35 +163,20 @@ if menu == "Input Barang":
 
                 st.success(f"Barang '{nama}' berhasil disimpan.")
 
-                # Generate barcode
-                CODE128 = barcode.get_barcode_class('code128')
-                barcode_img = CODE128(kode_input, writer=ImageWriter(), add_checksum=False)
-                buffer = io.BytesIO()
-                barcode_img.write(buffer)
-                buffer.seek(0)
-                st.image(buffer, caption=f"Barcode: {kode_input}", use_container_width=True)
-
     if st.session_state.barang:
         st.markdown("---")
         st.subheader("Daftar Barang")
         df = pd.DataFrame(st.session_state.barang)
         st.dataframe(df.style.format({"Harga Beli": "{:,.0f}", "Harga Jual": "{:,.0f}", "Stok": "{:d}"}), use_container_width=True)
 
-# === MENU: KASIR / OUTPUT BARANG ===
-elif menu == "Kasir / Output Barang":
+# === MENU: OUTPUT BARANG ===
+elif menu == "Output Barang":
     st.header("Kasir - Tambah ke Keranjang & Bayar")
-
-    col_scan, col_manual = st.columns([1, 2])
-
-    with col_scan:
-        st.markdown("### Scan Barcode")
-        webrtc_streamer(key="barcode-scanner-kasir", video_frame_callback=barcode_frame_callback, media_stream_constraints={"video": True, "audio": False})
 
     kode_barang_tersedia = [b["Kode"] for b in st.session_state.barang]
     pilih_kode_manual = st.selectbox("Pilih Kode Barang (Manual)", [""] + kode_barang_tersedia)
 
-    # Jika barcode hasil scan valid, pakai itu
-    kode_terpilih = st.session_state.last_barcode if st.session_state.last_barcode in kode_barang_tersedia else pilih_kode_manual
+    kode_terpilih = pilih_kode_manual
 
     produk = cari_barang_by_kode(kode_terpilih) if kode_terpilih else None
 
